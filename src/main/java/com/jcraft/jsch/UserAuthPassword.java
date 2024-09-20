@@ -32,8 +32,15 @@ class UserAuthPassword extends UserAuth {
   @Override
   public boolean start(Session session) throws Exception {
     super.start(session);
+    session.getLogger().log(Logger.INFO, "inside UserAuthPassword: start");
 
     byte[] password = session.password;
+    if (password == null) {
+      session.getLogger().log(Logger.INFO, "password is null");
+    } else {
+      session.getLogger().log(Logger.INFO, "is password empty? " + (password.length == 0));
+    }
+
     String dest = username + "@" + session.host;
     if (session.port != 22) {
       dest += (":" + session.port);
@@ -41,8 +48,11 @@ class UserAuthPassword extends UserAuth {
 
     try {
 
+      session.getLogger().log(Logger.INFO, "starting password authentication");
+      session.getLogger().log(Logger.INFO, "session.max_auth_tries: " + session.max_auth_tries);
       while (true) {
 
+        session.getLogger().log(Logger.INFO, "how many auth failures? " + session.auth_failures);
         if (session.auth_failures >= session.max_auth_tries) {
           return false;
         }
@@ -50,9 +60,11 @@ class UserAuthPassword extends UserAuth {
         if (password == null) {
           if (userinfo == null) {
             // throw new JSchException("USERAUTH fail");
+            session.getLogger().log(Logger.ERROR, "userinfo and password is null");
             return false;
           }
           if (!userinfo.promptPassword("Password for " + dest)) {
+            session.getLogger().log(Logger.ERROR, "password prompt failed");
             throw new JSchAuthCancelException("password");
             // break;
           }
@@ -63,6 +75,7 @@ class UserAuthPassword extends UserAuth {
             // break;
           }
           password = Util.str2byte(_password);
+          session.getLogger().log(Logger.INFO, "is password empty? " + (password.length == 0));
         }
 
         byte[] _username = null;
@@ -89,6 +102,7 @@ class UserAuthPassword extends UserAuth {
           int command = buf.getCommand() & 0xff;
 
           if (command == SSH_MSG_USERAUTH_SUCCESS) {
+            session.getLogger().log(Logger.INFO, "USERAUTH_SUCCESS");
             return true;
           }
           if (command == SSH_MSG_USERAUTH_BANNER) {
@@ -98,12 +112,14 @@ class UserAuthPassword extends UserAuth {
             byte[] _message = buf.getString();
             byte[] lang = buf.getString();
             String message = Util.byte2str(_message);
+            session.getLogger().log(Logger.INFO, "USERAUTH_BANNER: " + message);
             if (userinfo != null) {
               userinfo.showMessage(message);
             }
             continue loop;
           }
           if (command == SSH_MSG_USERAUTH_PASSWD_CHANGEREQ) {
+            session.getLogger().log(Logger.INFO, "USERAUTH_PASSWD_CHANGEREQ");
             buf.getInt();
             buf.getByte();
             buf.getByte();
@@ -116,6 +132,7 @@ class UserAuthPassword extends UserAuth {
               return false;
             }
 
+            session.getLogger().log(Logger.INFO, "Prompting for new password");
             UIKeyboardInteractive kbi = (UIKeyboardInteractive) userinfo;
             String[] response;
             String name = "Password Change Required";
@@ -124,9 +141,11 @@ class UserAuthPassword extends UserAuth {
             response =
                 kbi.promptKeyboardInteractive(dest, name, Util.byte2str(instruction), prompt, echo);
             if (response == null) {
+              session.getLogger().log(Logger.INFO, "password change prompt failed");
               throw new JSchAuthCancelException("password");
             }
 
+            session.getLogger().log(Logger.INFO, "password change prompt successful");
             byte[] newpassword = response[0] != null ? Util.str2byte(response[0]) : Util.empty;
 
             // send
@@ -148,6 +167,7 @@ class UserAuthPassword extends UserAuth {
             Util.bzero(newpassword);
             response = null;
             session.write(packet);
+            session.getLogger().log(Logger.INFO, "new password sent to server");
             continue loop;
           }
           if (command == SSH_MSG_USERAUTH_FAILURE) {
@@ -155,7 +175,9 @@ class UserAuthPassword extends UserAuth {
             buf.getByte();
             buf.getByte();
             byte[] foo = buf.getString();
+            session.getLogger().log(Logger.INFO, "USERAUTH_FAILURE: " + Util.byte2str(foo));
             int partial_success = buf.getByte();
+            session.getLogger().log(Logger.INFO, "partial_success: " + (partial_success != 0));
             // System.err.println(new String(foo)+
             // " partial_success:"+(partial_success!=0));
             if (partial_success != 0) {
@@ -166,6 +188,8 @@ class UserAuthPassword extends UserAuth {
           } else {
             // System.err.println("USERAUTH fail ("+buf.getCommand()+")");
             // throw new JSchException("USERAUTH fail ("+buf.getCommand()+")");
+            session.getLogger().log(Logger.INFO,
+                "USERAUTH fail with an unknown command (" + command + ")");
             return false;
           }
         }
@@ -173,6 +197,7 @@ class UserAuthPassword extends UserAuth {
         if (password != null) {
           Util.bzero(password);
           password = null;
+          session.getLogger().log(Logger.INFO, "password nullified");
         }
 
       }
@@ -181,7 +206,9 @@ class UserAuthPassword extends UserAuth {
       if (password != null) {
         Util.bzero(password);
         password = null;
+        session.getLogger().log(Logger.INFO, "password nullified");
       }
+      session.getLogger().log(Logger.INFO, "exiting UserAuthPassword: start");
     }
 
     // throw new JSchException("USERAUTH fail");

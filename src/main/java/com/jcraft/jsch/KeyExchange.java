@@ -123,6 +123,7 @@ public abstract class KeyExchange {
     }
 
     for (int i = 0; i < PROPOSAL_MAX; i++) {
+      session.getLogger().log(Logger.INFO, "negotiation for " + PROPOSAL_NAMES[i] + "...");
       byte[] sp = sb.getString(); // server proposal
       byte[] cp = cb.getString(); // client proposal
       int j = 0;
@@ -134,15 +135,19 @@ public abstract class KeyExchange {
         if (k == j)
           throw new JSchAlgoNegoFailException(i, Util.byte2str(cp), Util.byte2str(sp));
         String algorithm = Util.byte2str(cp, k, j - k);
+        session.getLogger().log(Logger.INFO, "current client proposal algo: " + algorithm);
         int l = 0;
         int m = 0;
         while (l < sp.length) {
           while (l < sp.length && sp[l] != ',')
             l++;
+          session.getLogger().log(Logger.INFO,
+              "current server proposal algo: " + Util.byte2str(sp, m, l - m));
           if (m == l)
             throw new JSchAlgoNegoFailException(i, Util.byte2str(cp), Util.byte2str(sp));
           if (algorithm.equals(Util.byte2str(sp, m, l - m))) {
             guess[i] = algorithm;
+            session.getLogger().log(Logger.INFO, "Its a match!!!");
             break loop;
           }
           l++;
@@ -156,6 +161,7 @@ public abstract class KeyExchange {
       } else if (guess[i] == null) {
         throw new JSchAlgoNegoFailException(i, Util.byte2str(cp), Util.byte2str(sp));
       }
+      session.getLogger().log(Logger.INFO, "guess: " + PROPOSAL_NAMES[i] + "=" + guess[i]);
     }
 
     boolean _s2cAEAD = false;

@@ -35,6 +35,7 @@ public class UserAuthNone extends UserAuth {
   @Override
   public boolean start(Session session) throws Exception {
     super.start(session);
+    session.getLogger().log(Logger.INFO, "inside UserAuthNone: start");
 
     // send
     // byte SSH_MSG_SERVICE_REQUEST(5)
@@ -62,6 +63,8 @@ public class UserAuthNone extends UserAuth {
     if (!result)
       return false;
 
+    session.getLogger().log(Logger.INFO,
+        "enable_auth_none=" + session.getConfig("enable_auth_none"));
     if (!session.getConfig("enable_auth_none").equals("yes"))
       return false;
 
@@ -85,6 +88,7 @@ public class UserAuthNone extends UserAuth {
       command = buf.getCommand() & 0xff;
 
       if (command == UserAuth.SSH_MSG_USERAUTH_SUCCESS) {
+        session.getLogger().log(Logger.INFO, "USERAUTH_SUCCESS");
         return true;
       }
       if (command == UserAuth.SSH_MSG_USERAUTH_BANNER) {
@@ -94,6 +98,7 @@ public class UserAuthNone extends UserAuth {
         byte[] _message = buf.getString();
         byte[] lang = buf.getString();
         String message = Util.byte2str(_message);
+        session.getLogger().log(Logger.INFO, "USERAUTH_BANNER: " + message);
         if (userinfo != null) {
           try {
             userinfo.showMessage(message);
@@ -107,6 +112,7 @@ public class UserAuthNone extends UserAuth {
         buf.getByte();
         buf.getByte();
         byte[] foo = buf.getString();
+        session.getLogger().log(Logger.INFO, "USERAUTH_FAILURE: " + Util.byte2str(foo));
         int partial_success = buf.getByte();
         setMethods(Util.byte2str(foo));
         // System.err.println("UserAuthNone: " + methods + " partial_success:" + (partial_success !=
@@ -117,11 +123,15 @@ public class UserAuthNone extends UserAuth {
 
         break;
       } else {
+        session.getLogger().log(Logger.INFO,
+            "Not USERAUTH_SUCCESS or USERAUTH_SUCCESS or USERAUTH_BANNER");
         // System.err.println("USERAUTH fail (" + command + ")");
         throw new JSchException("USERAUTH fail (" + command + ")");
       }
     }
     // throw new JSchException("USERAUTH fail");
+    session.getLogger().log(Logger.INFO, "getMethods(): " + getMethods());
+    session.getLogger().log(Logger.INFO, "exiting UserAuthNone: start");
     return false;
   }
 

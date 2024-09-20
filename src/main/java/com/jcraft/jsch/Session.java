@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InterruptedIOException;
 import java.io.OutputStream;
+import java.util.Arrays;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -200,6 +201,7 @@ public class Session {
   }
 
   public void connect(int connectTimeout) throws JSchException {
+    getLogger().log(Logger.INFO, "inside Session: connect");
     if (isConnected) {
       throw new JSchException("session is already connected");
     }
@@ -224,6 +226,7 @@ public class Session {
       int i, j;
 
       if (proxy == null) {
+        getLogger().log(Logger.INFO, "proxy null");
         InputStream in;
         OutputStream out;
         if (socket_factory == null) {
@@ -231,6 +234,7 @@ public class Session {
           in = socket.getInputStream();
           out = socket.getOutputStream();
         } else {
+          getLogger().log(Logger.INFO, "socket factory null");
           socket = socket_factory.createSocket(host, port);
           in = socket_factory.getInputStream(socket);
           out = socket_factory.getOutputStream(socket);
@@ -240,6 +244,7 @@ public class Session {
         io.setInputStream(in);
         io.setOutputStream(out);
       } else {
+        getLogger().log(Logger.INFO, "proxy not null");
         synchronized (proxy) {
           proxy.connect(socket_factory, host, port, connectTimeout);
           io.setInputStream(proxy.getInputStream());
@@ -250,6 +255,7 @@ public class Session {
 
       if (connectTimeout > 0 && socket != null) {
         socket.setSoTimeout(connectTimeout);
+        getLogger().log(Logger.INFO, "setSoTimeout(" + connectTimeout + ")");
       }
 
       isConnected = true;
@@ -322,6 +328,13 @@ public class Session {
       enable_ext_info_in_auth = getConfig("enable_ext_info_in_auth").equals("yes");
       enable_strict_kex = getConfig("enable_strict_kex").equals("yes");
       require_strict_kex = getConfig("require_strict_kex").equals("yes");
+
+      getLogger().log(Logger.INFO,
+          "enable_server_sig_algs" + getConfig("enable_server_sig_algs")
+              + " enable_ext_info_in_auth" + getConfig("enable_ext_info_in_auth")
+              + " enable_strict_kex" + getConfig("enable_strict_kex") + " require_strict_kex"
+              + getConfig("require_strict_kex"));
+
       send_kexinit();
 
       buf = read(buf);
@@ -335,22 +348,31 @@ public class Session {
       }
 
       KeyExchange kex = receive_kexinit(buf);
+      getLogger().log(Logger.INFO, "kex init received");
 
       while (true) {
         buf = read(buf);
+        getLogger().log(Logger.INFO, "read: " + buf.getCommand());
+        getLogger().log(Logger.INFO, "kex state: " + kex.getState());
         if (kex.getState() == buf.getCommand()) {
           kex_start_time = System.currentTimeMillis();
+          getLogger().log(Logger.INFO,
+              "kex started at: " + kex_start_time + "for kex state: " + kex.getState());
           boolean result = kex.next(buf);
+          getLogger().log(Logger.INFO, "kex next result: " + result);
           if (!result) {
             // System.err.println("verify: "+result);
+            getLogger().log(Logger.INFO, "verification failed");
             in_kex = false;
             throw new JSchException("verify: " + result);
           }
         } else {
+          getLogger().log(Logger.INFO, "Buffer and kex state mismatch");
           in_kex = false;
           throw new JSchException("invalid protocol(kex): " + buf.getCommand());
         }
         if (kex.getState() == KeyExchange.STATE_END) {
+          getLogger().log(Logger.INFO, "kex state end");
           break;
         }
       }
@@ -359,6 +381,7 @@ public class Session {
         long tmp = System.currentTimeMillis();
         in_prompt = true;
         checkHost(host, port, kex);
+        getLogger().log(Logger.INFO, "verified server host key");
         in_prompt = false;
         kex_start_time += (System.currentTimeMillis() - tmp);
       } catch (JSchException ee) {
@@ -368,6 +391,7 @@ public class Session {
       }
 
       send_newkeys();
+      getLogger().log(Logger.INFO, "kex is done on client side");
 
       // receive SSH_MSG_NEWKEYS(21)
       buf = read(buf);
@@ -378,7 +402,9 @@ public class Session {
           getLogger().log(Logger.INFO, "SSH_MSG_NEWKEYS received");
         }
 
+        getLogger().log(Logger.INFO, "kex is done on server side");
         receive_newkeys(buf, kex);
+        getLogger().log(Logger.INFO, "updated keys");
         initialKex = false;
       } else {
         in_kex = false;
@@ -391,6 +417,7 @@ public class Session {
 
       try {
         String s = getConfig("MaxAuthTries");
+        getLogger().log(Logger.INFO, "MaxAuthTries: " + s);
         if (s != null) {
           max_auth_tries = Integer.parseInt(s);
         }
@@ -406,29 +433,40 @@ public class Session {
         Class<? extends UserAuthNone> c =
             Class.forName(getConfig("userauth.none")).asSubclass(UserAuthNone.class);
         uan = c.getDeclaredConstructor().newInstance();
+        getLogger().log(Logger.INFO, "UserAuthNone class instantiated");
       } catch (Exception e) {
         throw new JSchException(e.toString(), e);
       }
 
+
+      getLogger().log(Logger.INFO, "UserAuthNone start");
       auth = uan.start(this);
+      getLogger().log(Logger.INFO, "UserAuthNone done");
 
       String cmethods = getConfig("PreferredAuthentications");
+      getLogger().log(Logger.INFO, "PreferredAuthentications: " + cmethods);
 
       String[] cmethoda = Util.split(cmethods, ",");
+      getLogger().log(Logger.INFO, "cmethoda.length: " + cmethoda.length);
 
       String smethods = null;
       if (!auth) {
         smethods = uan.getMethods();
+        getLogger().log(Logger.INFO, "uan.getMethods: " + smethods);
         if (smethods != null) {
           smethods = smethods.toLowerCase(Locale.ROOT);
+          getLogger().log(Logger.INFO, "uan.getMethods: " + smethods);
         } else {
+          getLogger().log(Logger.INFO, "uan.getMethods is null");
           // methods: publickey,password,keyboard-interactive
           // smethods = "publickey,password,keyboard-interactive";
           smethods = cmethods;
+          getLogger().log(Logger.INFO, "uan.getMethods: " + smethods);
         }
       }
 
       String[] smethoda = Util.split(smethods, ",");
+      getLogger().log(Logger.INFO, "smethoda.length: " + smethoda.length);
 
       int methodi = 0;
 
@@ -437,14 +475,19 @@ public class Session {
         while (!auth && cmethoda != null && methodi < cmethoda.length) {
 
           String method = cmethoda[methodi++];
+          getLogger().log(Logger.INFO,
+              "trying to find client method: " + method + " in server methods");
           boolean acceptable = false;
           for (int k = 0; k < smethoda.length; k++) {
             if (smethoda[k].equals(method)) {
+              getLogger().log(Logger.INFO, "found client method: " + method + " in server methods");
               acceptable = true;
               break;
             }
           }
           if (!acceptable) {
+            getLogger().log(Logger.INFO,
+                "client method: " + method + " not found in server methods");
             continue;
           }
 
@@ -467,6 +510,7 @@ public class Session {
             if (getConfig("userauth." + method) != null) {
               c = Class.forName(getConfig("userauth." + method)).asSubclass(UserAuth.class);
               ua = c.getDeclaredConstructor().newInstance();
+              getLogger().log(Logger.INFO, "UserAuth class instantiated for method: " + method);
             }
           } catch (Exception e) {
             if (getLogger().isEnabled(Logger.WARN)) {
@@ -477,13 +521,20 @@ public class Session {
           if (ua != null) {
             auth_cancel = false;
             try {
+              getLogger().log(Logger.INFO, "userauth." + method + " start");
               auth = ua.start(this);
+              getLogger().log(Logger.INFO, "userauth." + method + " done" + " auth: " + auth);
               if (auth && getLogger().isEnabled(Logger.INFO)) {
                 getLogger().log(Logger.INFO, "Authentication succeeded (" + method + ").");
               }
             } catch (JSchAuthCancelException ee) {
+              getLogger().log(Logger.INFO,
+                  "Authentication canceled (" + method + ")." + " message: " + ee.getMessage()
+                      + " stack trace: " + Arrays.toString(ee.getStackTrace()));
               auth_cancel = true;
             } catch (JSchPartialAuthException ee) {
+              getLogger().log(Logger.INFO, "Partial Authentication (" + method + ")." + " message: "
+                  + ee.getMessage() + " stack trace: " + Arrays.toString(ee.getStackTrace()));
               String tmp = smethods;
               smethods = ee.getMethods();
               smethoda = Util.split(smethods, ",");
@@ -494,15 +545,19 @@ public class Session {
               auth_cancel = false;
               continue loop;
             } catch (RuntimeException ee) {
+              getLogger().log(Logger.INFO, "Runtime exception (" + method + ")." + " message: "
+                  + ee.getMessage() + " stack trace: " + Arrays.toString(ee.getStackTrace()));
               throw ee;
             } catch (JSchException ee) {
+              getLogger().log(Logger.INFO, "JSch exception (" + method + ")." + " message: "
+                  + ee.getMessage() + " stack trace: " + Arrays.toString(ee.getStackTrace()));
               throw ee;
             } catch (Exception ee) {
               // SSH_MSG_DISCONNECT: Too many authentication failures
               // System.err.println("ee: " + ee);
               if (getLogger().isEnabled(Logger.WARN)) {
                 getLogger().log(Logger.WARN,
-                    "an exception during authentication\n" + ee.toString());
+                    "an exception during authentication\n" + Arrays.toString(ee.getStackTrace()));
               }
               break loop;
             }
@@ -512,6 +567,8 @@ public class Session {
       }
 
       if (!auth) {
+        getLogger().log(Logger.INFO,
+            "auth_failures: " + auth_failures + " max_auth_tries: " + max_auth_tries);
         if (auth_failures >= max_auth_tries) {
           if (getLogger().isEnabled(Logger.INFO)) {
             getLogger().log(Logger.INFO, "Login trials exceeds " + max_auth_tries);
@@ -523,6 +580,7 @@ public class Session {
 
       if (socket != null && (connectTimeout > 0 || timeout > 0)) {
         socket.setSoTimeout(timeout);
+        getLogger().log(Logger.INFO, "setSoTimeout(" + timeout + ")");
       }
 
       isAuthed = true;
@@ -554,6 +612,7 @@ public class Session {
           buf.putString(Util.str2byte(message));
           buf.putString(Util.str2byte("en"));
           write(packet);
+          getLogger().log(Logger.INFO, "SSH_MSG_DISCONNECT message sent");
         }
       } catch (Exception ee) {
       }
@@ -562,7 +621,8 @@ public class Session {
       } catch (Exception ee) {
       }
       isConnected = false;
-      // e.printStackTrace();
+      getLogger().log(Logger.INFO,
+          "e.message: " + e.getMessage() + " stack trace: " + e.getStackTrace());
       if (e instanceof RuntimeException)
         throw (RuntimeException) e;
       if (e instanceof JSchException)
@@ -571,10 +631,13 @@ public class Session {
     } finally {
       Util.bzero(this.password);
       this.password = null;
+      getLogger().log(Logger.INFO, "exiting Session: connect");
+
     }
   }
 
   private KeyExchange receive_kexinit(Buffer buf) throws Exception {
+    getLogger().log(Logger.INFO, "inside receive_kexinit");
     int j = buf.getInt();
     if (j != buf.getLength()) { // packet was compressed and
       buf.getByte(); // j is the size of deflated packet.
@@ -586,6 +649,7 @@ public class Session {
 
     if (initialKex) {
       if (enable_strict_kex || require_strict_kex) {
+        getLogger().log(Logger.INFO, "Strict KEX enabled");
         doStrictKex = checkServerStrictKex();
         if (doStrictKex) {
           if (getLogger().isEnabled(Logger.INFO)) {
@@ -601,6 +665,7 @@ public class Session {
       }
 
       if (enable_server_sig_algs) {
+        getLogger().log(Logger.INFO, "Sever sig algs enabled");
         doExtInfo = checkServerExtInfo();
         if (doExtInfo && getLogger().isEnabled(Logger.INFO)) {
           getLogger().log(Logger.INFO, "ext-info messaging supported by server");
@@ -609,6 +674,7 @@ public class Session {
     }
 
     if (!in_kex) { // We are in rekeying activated by the remote!
+      getLogger().log(Logger.INFO, "Rekeying activated by remote");
       send_kexinit();
     }
 
@@ -632,11 +698,14 @@ public class Session {
       Class<? extends KeyExchange> c = Class
           .forName(getConfig(guess[KeyExchange.PROPOSAL_KEX_ALGS])).asSubclass(KeyExchange.class);
       kex = c.getDeclaredConstructor().newInstance();
+      getLogger().log(Logger.INFO, "kex class instantiated");
     } catch (Exception | NoClassDefFoundError e) {
       throw new JSchException(e.toString(), e);
     }
 
+    // logs in each class?
     kex.doInit(this, V_S, V_C, I_S, I_C);
+    getLogger().log(Logger.INFO, "exiting receive_kexinit");
     return kex;
   }
 
@@ -697,6 +766,8 @@ public class Session {
   }
 
   private void send_kexinit() throws Exception {
+    getLogger().log(Logger.INFO, "inside send_kexinit");
+    getLogger().log(Logger.INFO, "in_kex value: " + in_kex);
     if (in_kex)
       return;
 
@@ -704,12 +775,12 @@ public class Session {
     String ciphers2c = getConfig("cipher.s2c");
     String[] not_available_ciphers = checkCiphers(getConfig("CheckCiphers"));
     if (not_available_ciphers != null && not_available_ciphers.length > 0) {
-      if (getLogger().isEnabled(Logger.DEBUG)) {
-        getLogger().log(Logger.DEBUG,
-            "cipher.c2s proposal before removing unavailable algos is: " + cipherc2s);
-        getLogger().log(Logger.DEBUG,
-            "cipher.s2c proposal before removing unavailable algos is: " + ciphers2c);
-      }
+      // if (getLogger().isEnabled(Logger.DEBUG)) {
+      getLogger().log(Logger.INFO,
+          "cipher.c2s proposal before removing unavailable algos is: " + cipherc2s);
+      getLogger().log(Logger.INFO,
+          "cipher.s2c proposal before removing unavailable algos is: " + ciphers2c);
+      // }
 
       cipherc2s = Util.diffString(cipherc2s, not_available_ciphers);
       ciphers2c = Util.diffString(ciphers2c, not_available_ciphers);
@@ -717,24 +788,24 @@ public class Session {
         throw new JSchException("There are not any available ciphers.");
       }
 
-      if (getLogger().isEnabled(Logger.DEBUG)) {
-        getLogger().log(Logger.DEBUG,
-            "cipher.c2s proposal after removing unavailable algos is: " + cipherc2s);
-        getLogger().log(Logger.DEBUG,
-            "cipher.s2c proposal after removing unavailable algos is: " + ciphers2c);
-      }
+      // if (getLogger().isEnabled(Logger.DEBUG)) {
+      getLogger().log(Logger.INFO,
+          "cipher.c2s proposal after removing unavailable algos is: " + cipherc2s);
+      getLogger().log(Logger.INFO,
+          "cipher.s2c proposal after removing unavailable algos is: " + ciphers2c);
+      // }
     }
 
     String macc2s = getConfig("mac.c2s");
     String macs2c = getConfig("mac.s2c");
     String[] not_available_macs = checkMacs(getConfig("CheckMacs"));
     if (not_available_macs != null && not_available_macs.length > 0) {
-      if (getLogger().isEnabled(Logger.DEBUG)) {
-        getLogger().log(Logger.DEBUG,
-            "mac.c2s proposal before removing unavailable algos is: " + macc2s);
-        getLogger().log(Logger.DEBUG,
-            "mac.s2c proposal before removing unavailable algos is: " + macs2c);
-      }
+      // if (getLogger().isEnabled(Logger.DEBUG)) {
+      getLogger().log(Logger.INFO,
+          "mac.c2s proposal before removing unavailable algos is: " + macc2s);
+      getLogger().log(Logger.INFO,
+          "mac.s2c proposal before removing unavailable algos is: " + macs2c);
+      // }
 
       macc2s = Util.diffString(macc2s, not_available_macs);
       macs2c = Util.diffString(macs2c, not_available_macs);
@@ -742,29 +813,29 @@ public class Session {
         throw new JSchException("There are not any available macs.");
       }
 
-      if (getLogger().isEnabled(Logger.DEBUG)) {
-        getLogger().log(Logger.DEBUG,
-            "mac.c2s proposal after removing unavailable algos is: " + macc2s);
-        getLogger().log(Logger.DEBUG,
-            "mac.s2c proposal after removing unavailable algos is: " + macs2c);
-      }
+      // if (getLogger().isEnabled(Logger.DEBUG)) {
+      getLogger().log(Logger.INFO,
+          "mac.c2s proposal after removing unavailable algos is: " + macc2s);
+      getLogger().log(Logger.INFO,
+          "mac.s2c proposal after removing unavailable algos is: " + macs2c);
+      // }
     }
 
     String kex = getConfig("kex");
     String[] not_available_kexes = checkKexes(getConfig("CheckKexes"));
     if (not_available_kexes != null && not_available_kexes.length > 0) {
-      if (getLogger().isEnabled(Logger.DEBUG)) {
-        getLogger().log(Logger.DEBUG, "kex proposal before removing unavailable algos is: " + kex);
-      }
+      // if (getLogger().isEnabled(Logger.DEBUG)) {
+      getLogger().log(Logger.INFO, "kex proposal before removing unavailable algos is: " + kex);
+      // }
 
       kex = Util.diffString(kex, not_available_kexes);
       if (kex == null) {
         throw new JSchException("There are not any available kexes.");
       }
 
-      if (getLogger().isEnabled(Logger.DEBUG)) {
-        getLogger().log(Logger.DEBUG, "kex proposal after removing unavailable algos is: " + kex);
-      }
+      // if (getLogger().isEnabled(Logger.DEBUG)) {
+      getLogger().log(Logger.INFO, "kex proposal after removing unavailable algos is: " + kex);
+      // }
     }
 
     if (enable_server_sig_algs && !isAuthed) {
@@ -780,39 +851,44 @@ public class Session {
     // Cache for UserAuthPublicKey
     this.not_available_shks = not_available_shks;
     if (not_available_shks != null && not_available_shks.length > 0) {
-      if (getLogger().isEnabled(Logger.DEBUG)) {
-        getLogger().log(Logger.DEBUG,
-            "server_host_key proposal before removing unavailable algos is: " + server_host_key);
-      }
+      // if (getLogger().isEnabled(Logger.DEBUG)) {
+      getLogger().log(Logger.INFO,
+          "server_host_key proposal before removing unavailable algos is: " + server_host_key);
+      // }
 
       server_host_key = Util.diffString(server_host_key, not_available_shks);
       if (server_host_key == null) {
+        getLogger().log(Logger.ERROR, "There are not any available sig algorithm.");
         throw new JSchException("There are not any available sig algorithm.");
       }
 
-      if (getLogger().isEnabled(Logger.DEBUG)) {
-        getLogger().log(Logger.DEBUG,
-            "server_host_key proposal after removing unavailable algos is: " + server_host_key);
-      }
+      // if (getLogger().isEnabled(Logger.DEBUG)) {
+      getLogger().log(Logger.INFO,
+          "server_host_key proposal after removing unavailable algos is: " + server_host_key);
+      // }
     }
 
     String prefer_hkr = getConfig("prefer_known_host_key_types");
     if (prefer_hkr.equals("yes")) {
-      if (getLogger().isEnabled(Logger.DEBUG)) {
-        getLogger().log(Logger.DEBUG,
-            "server_host_key proposal before known_host reordering is: " + server_host_key);
-      }
+      // if (getLogger().isEnabled(Logger.DEBUG)) {
+      getLogger().log(Logger.INFO,
+          "server_host_key proposal before known_host reordering is: " + server_host_key);
+      // }
 
       HostKeyRepository hkr = getHostKeyRepository();
       String chost = host;
       if (hostKeyAlias != null) {
+        getLogger().log(Logger.INFO, "hostKeyAlias: " + hostKeyAlias);
         chost = hostKeyAlias;
       }
       if (hostKeyAlias == null && port != 22) {
         chost = ("[" + chost + "]:" + port);
       }
+      getLogger().log(Logger.INFO, "chost: " + chost);
       HostKey[] hks = hkr.getHostKey(chost, null);
+
       if (hks != null && hks.length > 0) {
+        getLogger().log(Logger.INFO, "hks.length: " + hks.length);
         List<String> pref_shks = new ArrayList<>();
         List<String> shks = new ArrayList<>(Arrays.asList(Util.split(server_host_key, ",")));
         Iterator<String> it = shks.iterator();
@@ -824,8 +900,12 @@ public class Session {
               || type.equals("ssh-rsa-sha384@ssh.com") || type.equals("ssh-rsa-sha512@ssh.com")) {
             type = "ssh-rsa";
           }
+          getLogger().log(Logger.INFO, "algo: " + algo + " type: " + type);
+
           for (HostKey hk : hks) {
+            getLogger().log(Logger.INFO, "hk type: " + hk.getType());
             if (hk.getType().equals(type)) {
+              getLogger().log(Logger.INFO, "adding algo: " + algo + " to pref_shks");
               pref_shks.add(algo);
               it.remove();
               break;
@@ -833,15 +913,16 @@ public class Session {
           }
         }
         if (pref_shks.size() > 0) {
+          getLogger().log(Logger.INFO, "pref_shks.size: " + pref_shks.size());
           pref_shks.addAll(shks);
           server_host_key = String.join(",", pref_shks);
         }
       }
 
-      if (getLogger().isEnabled(Logger.DEBUG)) {
-        getLogger().log(Logger.DEBUG,
-            "server_host_key proposal after known_host reordering is: " + server_host_key);
-      }
+      // if (getLogger().isEnabled(Logger.DEBUG)) {
+      getLogger().log(Logger.INFO,
+          "server_host_key proposal after known_host reordering is: " + server_host_key);
+      // }
     }
 
     in_kex = true;
@@ -889,6 +970,7 @@ public class Session {
     if (getLogger().isEnabled(Logger.INFO)) {
       getLogger().log(Logger.INFO, "SSH_MSG_KEXINIT sent");
     }
+    getLogger().log(Logger.INFO, "exiting send_kexinit");
   }
 
   private void send_newkeys() throws Exception {
@@ -904,6 +986,7 @@ public class Session {
 
   private void send_extinfo() throws Exception {
     // send SSH_MSG_EXT_INFO(7)
+    getLogger().log(Logger.INFO, "inside send_extinfo");
     packet.reset();
     buf.putByte((byte) SSH_MSG_EXT_INFO);
     buf.putInt(1);
@@ -914,10 +997,13 @@ public class Session {
     if (getLogger().isEnabled(Logger.INFO)) {
       getLogger().log(Logger.INFO, "SSH_MSG_EXT_INFO sent");
     }
+    getLogger().log(Logger.INFO, "exiting send_extinfo");
   }
 
   private void checkHost(String chost, int port, KeyExchange kex) throws JSchException {
+    getLogger().log(Logger.INFO, "inside checkHost");
     String shkc = getConfig("StrictHostKeyChecking");
+    getLogger().log(Logger.INFO, "StrictHostKeyChecking: " + shkc);
 
     if (hostKeyAlias != null) {
       chost = hostKeyAlias;
@@ -929,26 +1015,33 @@ public class Session {
     String key_type = kex.getKeyType();
     String key_fprint = kex.getFingerPrint();
 
+    getLogger().log(Logger.INFO, "key_type: " + kex.getKeyType());
     if (hostKeyAlias == null && port != 22) {
       chost = ("[" + chost + "]:" + port);
+      getLogger().log(Logger.INFO, "chost: " + chost);
     }
 
     HostKeyRepository hkr = getHostKeyRepository();
 
     String hkh = getConfig("HashKnownHosts");
+    getLogger().log(Logger.INFO, "HashKnownHosts: " + hkh);
     if (hkh.equals("yes") && (hkr instanceof KnownHosts)) {
+      getLogger().log(Logger.INFO, "creating hashed host key");
       hostkey = ((KnownHosts) hkr).createHashedHostKey(chost, K_S);
     } else {
+      getLogger().log(Logger.INFO, "creating host key");
       hostkey = new HostKey(chost, K_S);
     }
 
     int i = 0;
     synchronized (hkr) {
       i = hkr.check(chost, K_S);
+      getLogger().log(Logger.INFO, "host key check: " + i);
     }
 
     boolean insert = false;
     if ((shkc.equals("ask") || shkc.equals("yes")) && i == HostKeyRepository.CHANGED) {
+      getLogger().log(Logger.INFO, "HostKey has been changed, why is this coming here?");
       String file = null;
       synchronized (hkr) {
         file = hkr.getKnownHostsRepositoryID();
@@ -983,10 +1076,12 @@ public class Session {
       synchronized (hkr) {
         hkr.remove(chost, kex.getKeyAlgorithName(), null);
         insert = true;
+        getLogger().log(Logger.INFO, "insert value set to: " + insert);
       }
     }
 
     if ((shkc.equals("ask") || shkc.equals("yes")) && (i != HostKeyRepository.OK) && !insert) {
+      getLogger().log(Logger.INFO, "Authenticity couldnt be established. Why is this coming here?");
       if (shkc.equals("yes")) {
         throw new JSchException("reject HostKey: " + chost);
       }
@@ -1009,10 +1104,14 @@ public class Session {
     }
 
     if (shkc.equals("no") && HostKeyRepository.NOT_INCLUDED == i) {
+      getLogger().log(Logger.INFO, "HostKeyRepository.NOT_INCLUDED="
+          + HostKeyRepository.NOT_INCLUDED + ", host key check result=" + i);
       insert = true;
     }
 
     if (i == HostKeyRepository.OK) {
+      getLogger().log(Logger.INFO,
+          "HostKeyRepository.OK=" + HostKeyRepository.OK + ", host key check result=" + i);
       HostKey[] keys = hkr.getHostKey(chost, kex.getKeyAlgorithName());
       String _key = Util.byte2str(Util.toBase64(K_S, 0, K_S.length, true));
       for (int j = 0; j < keys.length; j++) {
@@ -1027,6 +1126,7 @@ public class Session {
           }
           throw new JSchRevokedHostKeyException("revoked HostKey: " + chost);
         }
+        getLogger().log(Logger.INFO, "Done with kex key: " + j);
       }
     }
 
@@ -1043,8 +1143,10 @@ public class Session {
     if (insert) {
       synchronized (hkr) {
         hkr.add(hostkey, userinfo);
+        getLogger().log(Logger.INFO, "Adding host key to known hosts");
       }
     }
+    getLogger().log(Logger.INFO, "exiting checkHost");
   }
 
   // public void start(){ (new Thread(this)).start(); }
@@ -1461,22 +1563,27 @@ public class Session {
   }
 
   private void receive_newkeys(Buffer buf, KeyExchange kex) throws Exception {
+    getLogger().log(Logger.INFO, "inside receive_newkeys");
     try {
       updateKeys(kex);
+      getLogger().log(Logger.INFO, "updated keys");
     } finally {
       kex.clearK();
     }
     in_kex = false;
     if (doStrictKex) {
+      getLogger().log(Logger.INFO, "doStrictKex is true?");
       seqi = 0;
       if (getLogger().isEnabled(Logger.INFO)) {
         getLogger().log(Logger.INFO,
             "Reset incoming sequence number after receiving SSH_MSG_NEWKEYS for strict KEX");
       }
     }
+    getLogger().log(Logger.INFO, "exiting receive_newkeys");
   }
 
   private void updateKeys(KeyExchange kex) throws Exception {
+    getLogger().log(Logger.INFO, "inside updateKeys");
     byte[] K = kex.getK();
     byte[] H = kex.getH();
     HASH hash = kex.getHash();
@@ -1589,6 +1696,7 @@ public class Session {
 
       method = guess[KeyExchange.PROPOSAL_COMP_ALGS_STOC];
       initInflater(method);
+      getLogger().log(Logger.INFO, "exiting updateKeys");
     } catch (Exception | NoClassDefFoundError e) {
       if (e instanceof JSchException)
         throw e;
