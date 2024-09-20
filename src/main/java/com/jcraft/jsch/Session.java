@@ -33,7 +33,6 @@ import java.io.OutputStream;
 import java.util.Arrays;
 import java.net.Socket;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.Hashtable;
 import java.util.Iterator;
@@ -622,7 +621,7 @@ public class Session {
       }
       isConnected = false;
       getLogger().log(Logger.INFO,
-          "e.message: " + e.getMessage() + " stack trace: " + e.getStackTrace());
+          "e.message: " + e.getMessage() + " stack trace: " + Arrays.toString(e.getStackTrace()));
       if (e instanceof RuntimeException)
         throw (RuntimeException) e;
       if (e instanceof JSchException)
