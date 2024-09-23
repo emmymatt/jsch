@@ -229,26 +229,40 @@ public class Session {
         InputStream in;
         OutputStream out;
         if (socket_factory == null) {
-          socket = Util.createSocket(host, port, connectTimeout);
-          in = socket.getInputStream();
-          out = socket.getOutputStream();
-        } else {
           getLogger().log(Logger.INFO, "socket factory null");
+          socket = Util.createSocket(host, port, connectTimeout, this);
+          getLogger().log(Logger.INFO, "socket created");
+          in = socket.getInputStream();
+          getLogger().log(Logger.INFO, "input stream created");
+          out = socket.getOutputStream();
+          getLogger().log(Logger.INFO, "output stream created");
+        } else {
+          getLogger().log(Logger.INFO, "socket factory not null");
           socket = socket_factory.createSocket(host, port);
+          getLogger().log(Logger.INFO, "socket created");
           in = socket_factory.getInputStream(socket);
+          getLogger().log(Logger.INFO, "input stream created");
           out = socket_factory.getOutputStream(socket);
+          getLogger().log(Logger.INFO, "output stream created");
         }
         // if(timeout>0){ socket.setSoTimeout(timeout); }
         socket.setTcpNoDelay(true);
+        getLogger().log(Logger.INFO, "set tcp delay");
         io.setInputStream(in);
+        getLogger().log(Logger.INFO, "input stream set");
         io.setOutputStream(out);
+        getLogger().log(Logger.INFO, "output stream set");
       } else {
         getLogger().log(Logger.INFO, "proxy not null");
         synchronized (proxy) {
           proxy.connect(socket_factory, host, port, connectTimeout);
+          getLogger().log(Logger.INFO, "proxy connected");
           io.setInputStream(proxy.getInputStream());
+          getLogger().log(Logger.INFO, "input stream set");
           io.setOutputStream(proxy.getOutputStream());
+          getLogger().log(Logger.INFO, "output stream set");
           socket = proxy.getSocket();
+          getLogger().log(Logger.INFO, "socket getSocket successful");
         }
       }
 
