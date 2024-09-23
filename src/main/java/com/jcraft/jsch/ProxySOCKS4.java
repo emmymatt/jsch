@@ -73,7 +73,7 @@ public class ProxySOCKS4 implements Proxy {
       throws JSchException {
     try {
       if (socket_factory == null) {
-        socket = Util.createSocket(proxy_host, proxy_port, timeout);
+        socket = Util.createSocket(proxy_host, proxy_port, timeout, null);
         // socket=new Socket(proxy_host, proxy_port);
         in = socket.getInputStream();
         out = socket.getOutputStream();

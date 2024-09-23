@@ -69,7 +69,7 @@ public class ProxyHTTP implements Proxy {
       throws JSchException {
     try {
       if (socket_factory == null) {
-        socket = Util.createSocket(proxy_host, proxy_port, timeout);
+        socket = Util.createSocket(proxy_host, proxy_port, timeout, null);
         in = socket.getInputStream();
         out = socket.getOutputStream();
       } else {

@@ -132,7 +132,7 @@ class ChannelX11 extends Channel {
   void run() {
 
     try {
-      socket = Util.createSocket(host, port, TIMEOUT);
+      socket = Util.createSocket(host, port, TIMEOUT, null);
       socket.setTcpNoDelay(true);
       io = new IO();
       io.setInputStream(socket.getInputStream());

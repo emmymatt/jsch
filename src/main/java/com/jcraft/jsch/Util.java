@@ -373,19 +373,27 @@ class Util {
 
   static Socket createSocket(String host, int port, int timeout, Session session)
       throws JSchException {
-    session.getLogger().log(Logger.INFO, "inside Util:createSocket");
-    session.getLogger().log(Logger.INFO, "Connecting to " + host + " port " + port);
+    if (session != null) {
+      session.getLogger().log(Logger.INFO, "inside Util:createSocket");
+      session.getLogger().log(Logger.INFO, "Connecting to " + host + " port " + port);
+    }
     Socket socket = new Socket();
     try {
       socket.connect(new InetSocketAddress(host, port), timeout);
-      session.getLogger().log(Logger.INFO, "Socket connected");
+      if (session != null) {
+        session.getLogger().log(Logger.INFO, "Socket connected");
+      }
       return socket;
     } catch (Exception e) {
       try {
-        session.getLogger().log(Logger.INFO, "Closing socket due to exception" + " message: "
-            + e.getMessage() + " stack trace: " + Arrays.toString(e.getStackTrace()));
+        if (session != null) {
+          session.getLogger().log(Logger.INFO, "Closing socket due to exception" + " message: "
+              + e.getMessage() + " stack trace: " + Arrays.toString(e.getStackTrace()));
+        }
         socket.close();
-        session.getLogger().log(Logger.INFO, "Socket closed");
+        if (session != null) {
+          session.getLogger().log(Logger.INFO, "Socket closed");
+        }
       } catch (Exception ignore) {
       }
 
