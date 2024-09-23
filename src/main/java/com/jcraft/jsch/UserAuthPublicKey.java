@@ -306,11 +306,10 @@ class UserAuthPublicKey extends UserAuth {
           String pkmethodsuccess = it.next();
           it.remove();
           session.getLogger().log(Logger.INFO, "trying " + pkmethodsuccess);
-          if (not_available_pks.contains(pkmethodsuccess) && !(identity instanceof
-          AgentIdentity)) {
-          if (session.getLogger().isEnabled(Logger.INFO)) {
-            session.getLogger().log(Logger.INFO,
-                pkmethodsuccess + " not available for identity " + identity.getName());
+          if (not_available_pks.contains(pkmethodsuccess) && !(identity instanceof AgentIdentity)) {
+            if (session.getLogger().isEnabled(Logger.INFO)) {
+              session.getLogger().log(Logger.INFO,
+                  pkmethodsuccess + " not available for identity " + identity.getName());
             }
             continue loop4;
           }
